@@ -85,22 +85,13 @@ const loadMeshes = () => {
 	// this is the way
 }
 
-const meshes = [];
-const loadMeshObj = (meshObj, texSrc) => {
-	// TODO: texIdx
-	meshes.push(new TexMesh(gl, vMeshShader, fMeshShader, meshObj, texSrc, viewMat, 0));
-}
-
-const loadKeyboard = () => {
-	loadOBJFromPath('./objs/sphere.obj', loadMeshObj, './world.png') // last one calls draw
-}
-
 // ----------------------------------- WEBGL PROGRAM --------------------------
 
 let viewMat;
 
 const camControls = () => {
 	// TODO: use keyboard to move camera and rotate
+	viewMat = lookAt(vec3(2,5,0), vec3(0,0,0), vec3(0,1,0));
 }
 
 const main = () => {
@@ -116,6 +107,16 @@ const main = () => {
 	gl.clear(gl.COLOR_BUFFER_BIT);
 
 	viewMat = lookAt(vec3(-2,0,0), vec3(1,0,0), vec3(0,0,1));
+	const meshes = [];
+
+	const loadMeshObj = (meshObj, texSrc) => {
+		// TODO: texIdx
+		meshes.push(new TexMesh(gl, vMeshShader, fMeshShader, meshObj, texSrc, viewMat, 0));
+	}
+
+const loadKeyboard = () => {
+	loadOBJFromPath('./objs/sphere.obj', loadMeshObj, './world.png') // last one calls draw
+}
 	
 	loadKeyboard();
 }

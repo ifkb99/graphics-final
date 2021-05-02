@@ -116,7 +116,7 @@ class Texture {
 		image.onload = () => { 
 			console.log('img loaded');
 			gl.bindTexture(gl.TEXTURE_2D, this.texture);
-			gl.pixelStorei(gl.UNPACK_FLIP_Y_WEBGL, true); //?
+			//gl.pixelStorei(gl.UNPACK_FLIP_Y_WEBGL, true); //?
 			gl.texImage2D(gl.TEXTURE_2D, level, internalFormat,
 				srcFormat, srcType, image);
 
@@ -253,7 +253,7 @@ class TexMesh extends Mesh {
 			3, gl.FLOAT, false, 0, 0);
 		gl.enableVertexAttribArray(this.vertPointer);
 		
-		gl.uniformMatrix4fv(this.viewMatPtr, false, flatten(this.viewMat));}
+		gl.uniformMatrix4fv(this.viewMatPtr, false, flatten(this.viewMat));
 
 		// TEXTURE RENDERING
 		this.tex.render(gl, this.texIdx);
