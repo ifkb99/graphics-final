@@ -72,51 +72,32 @@ class Shape {
 }
 
 
-class TexShape extends Shape {
-	constructor(gl, vShader, fShader, verts, texCoords, imgSrc, texIdx) {
-		super(gl, vShader, fShader, verts);
-		this.texIdx = texIdx;
-
-		// TODO: is verts correct?
-		this.texture = new Texture(gl, this.program, imgSrc, texCoords);
-
-		// TODO: move into texture class
-		this.texCoordAttribLoc = gl.getAttribLocation(this.program, 'texCoord');
-		this.texSampler = gl.getUniformLocation(this.program, 'img');
-		this.resLoc = gl.getUniformLocation(this.program, 'resolution');
-	}
-
-	render(gl) {
-		super.render(gl);
-		// TODO: can do this once and not in render?	
-		gl.bindBuffer(gl.ARRAY_BUFFER, this.texture.texCoordBuf);
-		gl.vertexAttribPointer(this.texCoordAttribLoc, 2, gl.FLOAT, false, 0, 0);
-		gl.enableVertexAttribArray(this.texCoordAttribLoc);
-
-		gl.activeTexture(gl.TEXTURE0 + this.texIdx);
-		gl.bindTexture(gl.TEXTURE_2D, this.texture.texture);
-		gl.uniform1i(this.texSampler, this.texIdx);
-	}
-}
-
 class Texture {
 	// https://developer.mozilla.org/en-US/docs/Web/API/WebGL_API/Tutorial/Using_textures_in_WebGL
-	constructor(gl, program, imgSrc, texCoords, texIdx=0, texCoordLocName='texCoord', texSamplerName='img', resLocName='res') {
-		// TODO: pointers
+	constructor(gl, program, imgSrc, texCoords, renderFunc, texIdx=0, texCoordLocName='texCoord', texSamplerName='u_sampler') {
+		this.program = program;
+		this.texCoordPtr   = gl.getAttribLocation(program, texCoordLocName);
+		this.texSamplerPtr = gl.getUniformLocation(program, texSamplerName);
 
-		this.loadTexture(gl, imgSrc);
+		console.log(texCoords);
 		this.initBuffers(gl, texCoords);
+		this.loadTexture(gl, imgSrc, renderFunc);
 	}
 
 	initBuffers(gl, texCoords) {
 		// TODO: Tex coords not obj coords
 		this.texCoordBuf = gl.createBuffer();
+		gl.bindBuffer(gl.ARRAY_BUFFER, this.texCoordBuf);
+		console.log(texCoords);
 		gl.bufferData(gl.ARRAY_BUFFER, new Float32Array(texCoords), gl.STATIC_DRAW);
 	}
 
-	loadTexture(gl, imgSrc) {
+	loadTexture(gl, imgSrc, renderFunc) {
+		//gl.useProgram(this.program);
 		this.texture = gl.createTexture();
 		gl.bindTexture(gl.TEXTURE_2D, this.texture);
+		gl.uniform1i(this.texSamplerPtr, 0); // TODO: texIdx
+		gl.activeTexture(gl.TEXTURE0); // TODO: texIdx
 
 		// preload blue into texture while img loads
 		const level = 0,
@@ -130,14 +111,19 @@ class Texture {
 		gl.texImage2D(gl.TEXTURE_2D, level, internalFormat,
 			width, height, border, srcFormat, srcType, pixel);
 
-		const image = new Image(); image.onload = () => { gl.bindTexture(gl.TEXTURE_2D, this.texture);
+		const image = new Image();
+		image.src = imgSrc;
+		image.onload = () => { 
+			console.log('img loaded');
+			gl.bindTexture(gl.TEXTURE_2D, this.texture);
+			gl.pixelStorei(gl.UNPACK_FLIP_Y_WEBGL, true); //?
 			gl.texImage2D(gl.TEXTURE_2D, level, internalFormat,
 				srcFormat, srcType, image);
 
 			// image width and height must be power of 2
 			// 	clamp if it is not
 			if (this.isPowOfTwo(image.width) && this.isPowOfTwo(image.height)) {
-				gl.generateMipMap(gl.TEXTURE_2D);
+				gl.generateMipmap(gl.TEXTURE_2D);
 			} else {
 				// handles how arr pointer reads
 				//   wrap around or not/stop in spot
@@ -145,8 +131,19 @@ class Texture {
 				gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_WRAP_T, gl.CLAMP_TO_EDGE);
 				gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_MIN_FILTER, gl.LINEAR);
 			}
+			renderFunc(gl);
 		};
-		image.src = imgSrc;
+	}
+
+	render(gl, texIdx) {
+		//gl.useProgram(this.program);
+		gl.bindBuffer(gl.ARRAY_BUFFER, this.texCoordBuf);
+		gl.enableVertexAttribArray(this.texCoordPtr);
+		gl.vertexAttribPointer(this.texCoordPtr, 2, gl.FLOAT, false, 0, 0);
+
+		gl.activeTexture(gl.TEXTURE0 + texIdx);
+		gl.bindTexture(gl.TEXTURE_2D, this.texture);
+		gl.uniform1i(this.texSamplerPtr, texIdx);
 	}
 
 	isPowOfTwo(n) {
@@ -159,24 +156,30 @@ class Mesh {
 	// TODO: aspect ratio
 	static projMat = perspective(90, 4/3, 0.01, 100);
 
-	constructor(gl, vShaderSource, fShaderSource, meshSrc) {
+	constructor(gl, vShaderSource, fShaderSource, meshObj) {
 		// create program
 		this.program = createProgram(gl,
 			createShader(gl, gl.VERTEX_SHADER, vShaderSource), // vertex shader
 			createShader(gl, gl.FRAGMENT_SHADER, fShaderSource)); // fragment shader
 
+		gl.useProgram(this.program);
+		const mesh = loadOBJFromBuffer(meshObj);
+		this.verts   = mesh.c_verts;
+		this.indices = mesh.i_verts;
+		this.texCoords = this.getOrderedTextureCoordsFromObj(mesh);
+		this.nVerts  = this.indices.length;
+		// TODO: normals
+
 		this.viewMatPtr = gl.getUniformLocation(this.program, 'viewMat');
-		//this.viewMat = viewMat;
 		this.projMatPtr = gl.getUniformLocation(this.program, 'projMat');
 
-		const cb = () => this.initBuffers(gl, this.verts, this.indices);
+		this.initBuffers(gl, this.verts, this.indices);
 		// bind this needed since func loses this when being passed as first order
 		// https://eliux.github.io/javascript/common-errors/why-this-gets-undefined-inside-methods-in-javascript/
-		loadOBJFromPath(meshSrc, this.loadedMesh.bind(this), cb.bind(this));
 	}
-	
+
 	initBuffers(gl, vertArr, idxArr) {
-		gl.useProgram(this.program);
+		//gl.useProgram(this.program);
 
 		// index buffers
 		this.idxBuf = gl.createBuffer();
@@ -199,61 +202,66 @@ class Mesh {
 
 		// TODO: can this be here?
 		gl.uniformMatrix4fv(this.projMatPtr, false, flatten(Mesh.projMat));
-		this.render(gl);
 	}
 
-	render(gl) {
-		gl.useProgram(this.program);
-		gl.bindBuffer(gl.ELEMENT_ARRAY_BUFFER, this.idxBuf);
-		gl.bindBuffer(gl.ARRAY_BUFFER, this.vertBuf);
-		gl.vertexAttribPointer(this.vertPointer,
-			3, gl.FLOAT, false, 0, 0);
-		gl.enableVertexAttribArray(this.vertPointer);
-
-		this.viewMat = lookAt(vec3(-2,0,0), vec3(1,0,0), vec3(0,0,1));
-		gl.uniformMatrix4fv(this.viewMatPtr, false, flatten(this.viewMat));
-
-		// TODO: move all assets into one list and use offsets
-		gl.drawElements(gl.TRIANGLES, this.nVerts, gl.UNSIGNED_SHORT, 0);
-		// TODO: put render here again?
-	}
-
-	loadedMesh(data, _cb) {
-		this.mesh = loadOBJFromBuffer(data);
-		this.indices = this.mesh.i_verts;
-		this.verts = this.mesh.c_verts;
-		// TODO: normals
-		this.texCoords = this.getOrderedTextureCoordsFromObj(this.mesh);
-		this.nVerts = this.indices.length;
-		_cb();
-	}
+	//render(gl) {
+		////gl.useProgram(this.program);
+		//gl.bindBuffer(gl.ELEMENT_ARRAY_BUFFER, this.idxBuf);
+		//gl.bindBuffer(gl.ARRAY_BUFFER, this.vertBuf);
+		//gl.vertexAttribPointer(this.vertPointer,
+			//3, gl.FLOAT, false, 0, 0);
+		//gl.enableVertexAttribArray(this.vertPointer);
+//
+		//this.viewMat = lookAt(vec3(-2,0,0), vec3(1,0,0), vec3(0,0,1));
+		//gl.uniformMatrix4fv(this.viewMatPtr, false, flatten(this.viewMat));
+//
+		//// TODO: move all assets into one list and use offsets
+		//gl.drawElements(gl.TRIANGLES, this.nVerts, gl.UNSIGNED_SHORT, 0);
+	//}
 
 	getOrderedTextureCoordsFromObj(obj_object) {
 		const tex_idx = obj_object.i_uvt;
 		const obj_idx = obj_object.i_verts;
 		const tex_coords = obj_object.c_uvt;
 	
-		const arr_len = 2 * obj_object.c_verts.length;
-		this.texCoordsOrderedWithVertices = new Float32Array(arr_len);
+		const arr_len = obj_object.c_verts.length * 2;//Math.floor(2/3 * obj_object.c_verts.length);
+		const texCoords = new Float32Array(arr_len);
 	
 		for (let i=0; i<arr_len; i++) {
-			this.texCoordsOrderedWithVertices[2*obj_idx[i]] = tex_coords[2*tex_idx[i]];
-			this.texCoordsOrderedWithVertices[2*obj_idx[i]+1] = tex_coords[2*tex_idx[i]+1];
+			texCoords[2*obj_idx[i]] = tex_coords[2*tex_idx[i]];
+			texCoords[2*obj_idx[i]+1] = tex_coords[2*tex_idx[i]+1];
 		}
+
+		return texCoords;
 	}	
 }
 
 
 class TexMesh extends Mesh {
-	constructor(gl, vShaderSource, fShaderSource, meshSrc, texCoords, imgSrc) {
-		super(gl, vShaderSource, fShaderSource, meshSrc);
-		this.img = new Image();
-		this.img.src = imgSrc;
-		this.img.onload = () => {
+	constructor(gl, vShaderSource, fShaderSource, meshData, imgSrc, viewMat, texIdx) {
+		super(gl, vShaderSource, fShaderSource, meshData);
+		this.tex = new Texture(gl, this.program, imgSrc, this.texCoords, this.render.bind(this), texIdx);
+		this.texIdx = texIdx;
+		this.viewMat = viewMat;
+	}
 
-		}
+	render(gl) {
+		//gl.useProgram(this.program);
+		gl.bindBuffer(gl.ELEMENT_ARRAY_BUFFER, this.idxBuf);
+		gl.bindBuffer(gl.ARRAY_BUFFER, this.vertBuf);
+		gl.vertexAttribPointer(this.vertPointer,
+			3, gl.FLOAT, false, 0, 0);
+		gl.enableVertexAttribArray(this.vertPointer);
+		
+		gl.uniformMatrix4fv(this.viewMatPtr, false, flatten(this.viewMat));}
+
+		// TEXTURE RENDERING
+		this.tex.render(gl, this.texIdx);
+
+		// TODO: move all assets into one list and use offsets
+		gl.drawElements(gl.TRIANGLES, this.nVerts, gl.UNSIGNED_SHORT, 0);
 	}
 }
 
 
-export { TexShape, Shape, Mesh };
+export { Shape, Mesh, TexMesh };

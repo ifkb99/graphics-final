@@ -1,4 +1,4 @@
-import { TexShape, Shape, Mesh } from './shaders.js';
+import { Shape, Mesh, TexMesh } from './shaders.js';
 // https://webgl2fundamentals.org/webgl/lessons/webgl-fundamentals.html
 // ------------------------------------ SHADERS -------------------------------
 
@@ -11,29 +11,32 @@ void main() {
 `;
 
 const vMeshShader = `#version 300 es
+
 in vec4 pos;
-in vec4 vColor;
+in vec2 texCoord;
 
 uniform mat4 viewMat;
 uniform mat4 projMat;
 
-out vec4 fColor;
+out vec2 vTexPos;
 
 void main() {
-	fColor = vColor;
 	gl_Position = projMat * viewMat * pos;
+	vTexPos = texCoord;
 }
 `;
 
 const fMeshShader = `#version 300 es
 precision highp float;
+in vec2 vTexPos;
 
-in vec4 fColor;
-out vec4 color;
+uniform sampler2D u_sampler;
+
+out vec4 col;
 
 void main() {
-	color = fColor;
-	//color = vec4(1, 0.25, 0.75, 1);
+	//col = vec4(vTexPos, 0, 1);
+	col = texture(u_sampler, vTexPos);
 }
 `;
 
@@ -75,9 +78,30 @@ void main() {
 }
 `;
 
+// ----------------------------------- MESHES ---------------------------------
+
+const loadMeshes = () => {
+	meshes
+	// this is the way
+}
+
+const meshes = [];
+const loadMeshObj = (meshObj, texSrc) => {
+	// TODO: texIdx
+	meshes.push(new TexMesh(gl, vMeshShader, fMeshShader, meshObj, texSrc, viewMat, 0));
+}
+
+const loadKeyboard = () => {
+	loadOBJFromPath('./objs/sphere.obj', loadMeshObj, './world.png') // last one calls draw
+}
+
 // ----------------------------------- WEBGL PROGRAM --------------------------
 
-const { mat2, mat3, mat4, vec2, vec3, vec4 } = glMatrix;
+let viewMat;
+
+const camControls = () => {
+	// TODO: use keyboard to move camera and rotate
+}
 
 const main = () => {
 	const canvas = document.getElementById('gl-canvas');
@@ -85,73 +109,15 @@ const main = () => {
 
 	if (gl === null) return;
 
-	// supposedly improves performance (if I can get it to work -_-)
-	//glMatrix.setMatrixArrayType(Array);
-
 	// DISPLAY CONFIG
 	// TODO: canvas resize: https://webgl2fundamentals.org/webgl/lessons/webgl-resizing-the-canvas.html
 	gl.viewport(0, 0, gl.canvas.width, gl.canvas.height); // map (-1,1)->(0, pixel width)
 	gl.clearColor(0.0, 0.0, 0.0, 1.0);
 	gl.clear(gl.COLOR_BUFFER_BIT);
+
+	viewMat = lookAt(vec3(-2,0,0), vec3(1,0,0), vec3(0,0,1));
 	
-	// matrices
-
-	const points = [
-		0,0,
-		0,0.5,
-		0.5,0
-	];
-
-	const sqPts = new Float32Array([
-		0,0,
-		0,-0.5,
-		-0.5,-0.5,
-		0,0,
-		-0.5,0,
-		-0.5,-0.5
-	]);
-
-	const texPts = [
-		0,-0.5,
-		0,0.0,
-		-0.5,0,
-		-0.5,-0.5
-	];
-
-	const shapes = [
-		//new Shape(gl, vShaderSource, fShaderSource, points), // triangle
-		//new Shape(gl, vShaderSource, fShaderSource, sqPts) // square
-	];
-
-	const texShapes = [
-		//new TexShape(gl, vTexShader, fTexShader, sqPts, texPts, './baka.png', 0) // square
-	];
-
-	const meshes = [
-		new Mesh(gl, vMeshShader, fMeshShader, './objs/cone.obj')
-	];
-
-	// TODO: flatten shapes into single array for one draw call
-	shapes.forEach(shape => {
-		shape.render(gl);
-		gl.drawArrays(gl.TRIANGLES, 0, shape.nVerts);
-	});
-
-	texShapes.forEach(shape => {
-		//gl.bindBuffer(gl.ARRAY_BUFFER, shape.posBuf);
-
-		gl.bindVertexArray(shape.vao);
-		gl.enableVertexAttribArray(shape.vao);
-		//gl.bindBuffer(gl.ARRAY_BUFFER, shape.posBuf);
-		shape.render(gl);
-		gl.drawArrays(gl.TRIANGLES, 0, shape.nVerts);
-		//gl.drawElements(gl.TRIANGLES, shape.nVerts, gl.UNSIGNED_SHORT, 0);
-	});
-
-	// TODO: this has to be called after obj loads
-	//meshes.forEach((mesh) => mesh.render(gl));
-	
-	// TODO: drawArrays vs drawElements
+	loadKeyboard();
 }
 
 window.onload = main;
