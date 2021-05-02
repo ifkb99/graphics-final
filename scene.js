@@ -17,11 +17,12 @@ in vec2 texCoord;
 
 uniform mat4 viewMat;
 uniform mat4 projMat;
+uniform mat4 modelMat;
 
 out vec2 vTexPos;
 
 void main() {
-	gl_Position = projMat * viewMat * pos;
+	gl_Position = projMat * viewMat * modelMat * pos;
 	vTexPos = texCoord;
 }
 `;
@@ -106,18 +107,23 @@ const main = () => {
 	gl.clearColor(0.0, 0.0, 0.0, 1.0);
 	gl.clear(gl.COLOR_BUFFER_BIT);
 
-	viewMat = lookAt(vec3(-2,0,0), vec3(1,0,0), vec3(0,0,1));
+	viewMat = lookAt(vec3(40,50,0), vec3(0,0,0), vec3(0,1,0));
 	const meshes = [];
 
 	const loadMeshObj = (meshObj, texSrc) => {
 		// TODO: texIdx
 		meshes.push(new TexMesh(gl, vMeshShader, fMeshShader, meshObj, texSrc, viewMat, 0));
+		meshes[0].rotateObj(gl,90,[0,1,0])
+		meshes[0].translateObj(gl, [0, 0, 20])
+		requestAnimFrame(render)
 	}
-
-const loadKeyboard = () => {
-	loadOBJFromPath('./objs/sphere.obj', loadMeshObj, './world.png') // last one calls draw
-}
-	
+	function render(){
+		meshes.forEach(mesh => mesh.render(gl));
+	}
+	const loadKeyboard = () => {
+		loadOBJFromPath('./objs/keyboard/logitech/lowprofilemechanicalkeyboard.obj', loadMeshObj, './world.png') // last one calls draw
+	}
+		
 	loadKeyboard();
 }
 

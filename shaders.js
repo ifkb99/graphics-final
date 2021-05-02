@@ -156,6 +156,7 @@ class Mesh {
 	// TODO: aspect ratio
 	static projMat = perspective(90, 4/3, 0.01, 100);
 
+
 	constructor(gl, vShaderSource, fShaderSource, meshObj) {
 		// create program
 		this.program = createProgram(gl,
@@ -169,7 +170,9 @@ class Mesh {
 		this.texCoords = this.getOrderedTextureCoordsFromObj(mesh);
 		this.nVerts  = this.indices.length;
 		// TODO: normals
+		this.modelMat = mat4();
 
+		this.modelMatPtr = gl.getUniformLocation(this.program, 'modelMat');
 		this.viewMatPtr = gl.getUniformLocation(this.program, 'viewMat');
 		this.projMatPtr = gl.getUniformLocation(this.program, 'projMat');
 
@@ -201,6 +204,8 @@ class Mesh {
 		//gl.bufferData(gl.ARRAY_BUFFER, new Float32Array(normArr), gl.STATIC_DRAW);
 
 		// TODO: can this be here?
+
+		gl.uniformMatrix4fv(this.modelMatPtr, false, flatten(this.modelMat));
 		gl.uniformMatrix4fv(this.projMatPtr, false, flatten(Mesh.projMat));
 	}
 
@@ -218,7 +223,15 @@ class Mesh {
 		//// TODO: move all assets into one list and use offsets
 		//gl.drawElements(gl.TRIANGLES, this.nVerts, gl.UNSIGNED_SHORT, 0);
 	//}
+	rotateObj(gl, angle, vec){
+		this.modelMat = mult(this.modelMat, rotate(angle, vec));
+		gl.uniformMatrix4fv(this.modelMatPtr, false, flatten(this.modelMat));
+	}
 
+	translateObj(gl, vec){
+		this.modelMat = mult(this.modelMat, translate(vec[0], vec[1], vec[2]));
+		gl.uniformMatrix4fv(this.modelMatPtr, false, flatten(this.modelMat));
+	}
 	getOrderedTextureCoordsFromObj(obj_object) {
 		const tex_idx = obj_object.i_uvt;
 		const obj_idx = obj_object.i_verts;
