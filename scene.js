@@ -109,6 +109,34 @@ const main = () => {
 	viewMat = lookAt(vec3(-2,0,0), vec3(1,0,0), vec3(0,0,1));
 	const meshes = [];
 
+	window.addEventListener("keydown", function(){
+		switch(event.keyCode) {
+			case 87:  // W
+				break;
+			case 65:  // A
+				break;
+			case 83: // S
+				break;
+			case 68: // D
+				break;
+			
+			case 38:  // Up arrow 	
+				break;
+			case 40:  // Down arrow
+				break;
+			case 37: // Left arrow
+				break;
+			case 39: // Right arrow key
+				break;
+			case 32: // Spacebar
+				break;
+			case 61: // + key
+				break;
+			case 173: // - key
+				break;
+			}
+	}, true);
+
 	const loadMeshObj = (meshObj, texSrc) => {
 		// TODO: texIdx
 		meshes.push(new TexMesh(gl, vMeshShader, fMeshShader, meshObj, texSrc, viewMat, 0));
